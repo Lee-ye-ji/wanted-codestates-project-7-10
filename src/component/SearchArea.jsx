@@ -1,21 +1,45 @@
-import React from 'react';
-import styled from 'styled-components';
+import React, { useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { useMediaQuery } from 'react-responsive';
-import RecommendArea from './RecommendArea/RecommendArea';
+import styled from 'styled-components';
 import SearchIcon from '../assets/icon_search.svg';
+import useUserInput from '../hooks/useUserInput';
+import { isSearching, searchRecommend } from '../redux/actions/search';
+import debounce from '../utilities/debounce';
+import RecommendArea from './RecommendArea/RecommendArea';
 
 const SearchArea = () => {
   const isPC = useMediaQuery({ query: '(min-width: 1040px)' });
+  const result = useSelector((state) => state.search.success);
+  const { onKeyDown, activeIndex, inputRef } = useUserInput(result);
 
   // redux의 action -> state 변경하는 로직
   const dispatch = useDispatch();
+  const debounceHandler = useCallback(
+    debounce((value) => updateResult(value), 500),
+    []
+  );
+
   // input에 있는 값 가져오는 onChange 함수
-  const onchangeValue = (e) => {
-    dispatch(searchResult(e.target.value));
-  };
+  const onchangeValue = useCallback(
+    (e) => {
+      if (e.target.value.replace(/\s/gi, '') === '') {
+        debounceHandler(null);
+        dispatch(isSearching(false));
+      } else {
+        dispatch(isSearching(true));
+        debounceHandler(e.target.value);
+      }
+    },
+    [debounceHandler]
+  );
+  const updateResult = useCallback((value) => {
+    dispatch(searchRecommend(value));
+  });
+
   // 검색 버튼 누르면 동작하는 event함수
-  const onSearch = () => {};
-  
+  const onSearch = () => { };
+
   return (
     <SearchAreaStyled isPC={isPC}>
       <Title className="title-responsive">
@@ -26,13 +50,23 @@ const SearchArea = () => {
       <SearchBar className="searchbar-responsive">
         <SearchBar.Box>
           {isPC && <SearchIcon />}
-          <input type="text" placeholder="질환명을 입력해 주세요. " />
-          {!isPC && <SearchIcon />}
+          <input
+            type="text"
+            ref={inputRef}
+            placeholder="질환명을 입력해 주세요. "
+            onChange={onchangeValue}
+            onKeyDown={onKeyDown}
+          />
+          {!isPC && <SearchIcon onClick={onSearch} />}
         </SearchBar.Box>
-        {isPC && <SearchBar.Button type="button">검색</SearchBar.Button>}
+        {isPC && (
+          <SearchBar.Button type="button" onClick={onSearch}>
+            검색
+          </SearchBar.Button>
+        )}
       </SearchBar>
       {/* show true/false에 따라 RecommendArea display 속성 변경 */}
-      <RecommendArea show />
+      <RecommendArea show activeIndex={activeIndex} />
     </SearchAreaStyled>
   );
 };
@@ -90,6 +124,7 @@ SearchBar.Box = styled.div`
     font-size: 100%;
     line-height: 1.15;
     color: #111;
+    width: 100%;
   }
   input::placeholder {
     color: #aaa;
